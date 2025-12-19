@@ -2,81 +2,87 @@ package com.dhurba.concurrent;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
 
 public class WithStampedLock {
-    static int balance = 10;
+    int balance;
+    final StampedLock lock;
 
-    static void main() throws InterruptedException {
-        StampedLock lock = new StampedLock();
-        ExecutorService executorService = Executors.newCachedThreadPool();
-        Runnable deposit = () -> {
-            deposit(lock);
-        };
-        Runnable inquiry = () -> {
-            inquireBalance(lock);
-        };
-        Runnable withdraw = () -> {
-            withdraw(lock);
-        };
-
-        executorService.submit(deposit);
-        executorService.submit(withdraw);
-        executorService.submit(withdraw);
-        executorService.submit(withdraw);
-        executorService.submit(deposit);
-        executorService.submit(inquiry);
-        executorService.awaitTermination(5, TimeUnit.SECONDS);
-        executorService.submit(inquiry);
-        executorService.shutdown();
+    public WithStampedLock(int balance, StampedLock stampedLock) {
+        this.balance = balance;
+        this.lock = stampedLock;
     }
 
-    private static void deposit(StampedLock lock) {
+    static void main() {
+        WithStampedLock withStampedLock;
+        try (ExecutorService executorService = Executors.newFixedThreadPool(5)) {
+            withStampedLock = new WithStampedLock(10, new StampedLock());
+            Runnable deposit = () -> withStampedLock.deposit(10);
+            Runnable inquiry = withStampedLock::inquireBalance;
+            Runnable withdraw = () -> withStampedLock.withdraw(10);
+
+            executorService.submit(deposit);
+            executorService.submit(withdraw);
+            executorService.submit(withdraw);
+            executorService.submit(withdraw);
+            executorService.submit(inquiry);
+        }
+        System.out.println("--Closing Ledger with balance: " + withStampedLock.balance);
+    }
+
+    private void deposit(int amt) {
         long l = lock.writeLock();
-        balance += 10;
+        balance += amt;
         System.out.println("Done Depositing, balance: " + balance);
         lock.unlock(l);
     }
 
-    private static void inquireBalance(StampedLock lock) {
+    private void inquireBalance() {
         long l = lock.tryOptimisticRead();
         if (!lock.validate(l)) {
             l = lock.readLock();
         }
         System.out.println("Current Balance: " + balance);
+
         lock.unlock(l);
     }
 
-    private static void withdraw(StampedLock lock) {
-        long l = lock.tryOptimisticRead();
-        if (!lock.validate(l)) {
-            l = lock.readLock();
-        }
+    private void withdraw(int amt) {
+        long l = lock.readLock();
+        System.out.printf("Got read lock, l: %s\n", l);
         System.out.println("Withdrawing from Current Balance: " + balance);
-        if (balance - 10 < 0) {
-            System.out.println("Balance too low to withdraw");
+        if (balTooLow(amt)) {
+            lock.unlockRead(l);
             return;
         }
-        long wls = lock.writeLock();
+
+        long wls = lock.tryConvertToWriteLock(l);
+        System.out.printf("Tried to convert to writeLockStamp : %s, from readLockStamp: %s\n", wls, l);
         if (wls == 0) {
-            sleep(10 + (int) (Math.random() * 10));
-            lock.unlockRead(l);
-            System.out.println("Read Lock couldn't be converted to Write");
+            boolean tryUnlockRead = lock.tryUnlockRead(); // gives prev state
+            System.out.println("Read Lock: " + tryUnlockRead + " couldn't be converted to Write");
             wls = lock.writeLock();
         }
-        System.out.println("Now got the write lock");
-        balance -= 10;
-        System.out.println("Done Withdrawing, balance: " + balance);
-        lock.unlockRead(l);
-        lock.unlock(wls);
-    }
 
-    private static void sleep(int i) {
-        try {
-            Thread.sleep(i);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        System.out.println("Now got the write lock :" + wls);
+        if (balTooLow(amt)) { // Double-checking after acquiring the write lock
+            lock.unlockWrite(wls);
+            return;
+        }
+        balance -= amt;
+        System.out.println("Done Withdrawing, balance: " + balance);
+        if (StampedLock.isWriteLockStamp(wls)) {
+            System.out.println("Unlocking write : " + wls);
+            lock.unlockWrite(wls);
         }
     }
+
+    private boolean balTooLow(int amt) {
+        if (balance - amt < 0) {
+            System.out.println("Balance too low to withdraw");
+            return true;
+        }
+        return false;
+    }
+
 }
