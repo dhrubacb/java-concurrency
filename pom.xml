@@ -12,6 +12,7 @@
         <module>thread-based-counter</module>
         <module>producer-consumer</module>
         <module>lock-gate</module>
+        <module>pool-executors</module>
     </modules>
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
