@@ -13,6 +13,7 @@
         <module>producer-consumer</module>
         <module>lock-gate</module>
         <module>pool-executors</module>
+        <module>thread-problems</module>
     </modules>
     <properties>
         <maven.compiler.source>25</maven.compiler.source>

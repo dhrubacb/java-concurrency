@@ -14,6 +14,8 @@ public class ParallelReductionDemo {
         int length = 1000000000; // after this threshold the difference between seq and parallel is visible
         int[] array = new int[length];
         Arrays.fill(array, 15);
+
+        // Sequential
         long startMilli = System.currentTimeMillis();
         long sum = 0L;
         for (int i = 0; i < length; i++) {
@@ -22,9 +24,8 @@ public class ParallelReductionDemo {
         long endMilli = System.currentTimeMillis();
         log.info("Result: {}, Total time taken in seq: {}", sum, endMilli - startMilli);
 
-
+        // Parallel
         startMilli = System.currentTimeMillis();
-
         ParallelSum parallelSum = new ParallelSum(0, length, array);
         Long res = forkJoinPool.invoke(parallelSum);
         endMilli = System.currentTimeMillis();

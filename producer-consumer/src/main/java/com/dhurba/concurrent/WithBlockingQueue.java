@@ -1,16 +1,25 @@
 package com.dhurba.concurrent;
 
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+@Slf4j
 public class WithBlockingQueue {
 
+    @SneakyThrows
     public static void main(String[] args) {
         BlockingQueue<Integer> blockingQueue = new ArrayBlockingQueue<>(1);
         WithBlockingQueue obj = new WithBlockingQueue();
-        new Thread(obj.new Producer(blockingQueue)).start();
-        new Thread(obj.new Consumer(blockingQueue)).start();
-
+        Thread thread1 = new Thread(obj.new Producer(blockingQueue));
+        Thread thread2 = new Thread(obj.new Consumer(blockingQueue));
+        thread2.start();
+        thread1.start();
+        thread1.join();
+        thread2.interrupt();
+        log.info("Blocking Queue Final Size: {}", blockingQueue.size());
     }
 
     private class Producer implements Runnable {
@@ -25,7 +34,7 @@ public class WithBlockingQueue {
             try {
                 for (int i = 0; i < 6; i++) {
                     blockingQueue.put(i);
-                    System.out.println("Produced");
+                    log.info("Produced {}", i);
                     Thread.sleep(550);
                 }
             } catch (InterruptedException e) {
@@ -43,10 +52,10 @@ public class WithBlockingQueue {
 
         @Override
         public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
+            while (!Thread.currentThread().isInterrupted() ) {
+                if (blockingQueue.isEmpty()) continue;
                 try {
-                    blockingQueue.take();
-                    System.out.println("Consumed");
+                    log.info("Consumed {}", blockingQueue.take());
                     Thread.sleep(500);
                 } catch (Exception e) {
                     e.printStackTrace();
