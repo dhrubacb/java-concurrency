@@ -26,14 +26,13 @@ public class CompletableFutureDemo {
         long initialMillis = System.currentTimeMillis();
 
         List<CompletableFuture<String>> completableFutures = fetchParallelly();
-        CompletableFuture<Void> all = CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0]));
-        CompletableFuture<List<String>> listCompletableFuture = all.thenApply(_ ->
-                completableFutures.stream()
-                        .map(CompletableFuture::join)
-                        .toList()
-        );
-        listCompletableFuture.thenAccept(results ->
-                results.forEach(log::info))
+        CompletableFuture.allOf(completableFutures.toArray( CompletableFuture[]::new))
+                .thenApply(_ ->
+                        completableFutures.stream()
+                                .map(CompletableFuture::join)
+                                .toList()
+                ).thenAccept(results ->
+                        results.forEach(log::info))
                 .join();
 
         log.info("Total time taken in sec*10: {}", (System.currentTimeMillis() - initialMillis) / 100L);
